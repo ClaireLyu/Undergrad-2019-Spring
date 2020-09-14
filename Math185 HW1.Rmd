@@ -1,0 +1,148 @@
+---
+title: "Math185 HW1"
+author: "Yuetong Lyu"
+date: "4/13/2019"
+output: pdf_document
+---
+
+Problem 1A
+```{r}
+chisq.power=function(k,t,n,B = 2000){
+R <- numeric(B)
+#build Pt
+Pt <- numeric(2*k)
+for(i in 1:k){Pt[i]=1/(2*k)+t}
+for(i in (k+1):(2*k)){Pt[i]=1/(2*k)-t}
+#simulate n elements from 1:2*k by prob Pt 
+for(b in 1:B){
+  ptsample <- sample(1:(2*k),n,replace = T, prob = Pt)
+  tloop <- table(ptsample)
+  if(chisq.test(tloop)$p.value <= 0.05){R[b]=1}
+}
+return(sum(R)/B)
+}
+```
+
+Problem 1B
+```{r}
+k = 6
+n = 500
+t <- seq(1/(100*k), 1/(2*k)-1/(100*k),1/(100*k))
+idx = 1
+power <- numeric(length(t))
+for(i in t){
+  power[idx] <- chisq.power(k, i, n, B=2000)
+  idx = idx + 1
+}
+plot(t, power, main="Power Curve when k = 6, n = 500", xlab = "t", ylab = "power")
+```
+
+
+Problem 2
+```{r}
+setwd("~/Desktop/math185_files")
+Natality <- read.table("Natality.txt", header = T)
+save(Natality, file = "natality-california-2017.rda")
+load(file = "natality-california-2017.rda")
+data <- matrix(NA,2,36)
+for(i in 1:36){data[1,i] <- Natality$Births[i]}
+for(i in 37:72){data[2,i-36] <- Natality$Births[i]}
+rownames(data) <- c("Female", "Male")
+colnames(data) <- Natality$County[1:36]
+data
+barplot(data,beside = T,legend = T,args.legend = list(x = "topright"))
+chisq.test(data)
+```
+Since the p-value is 0.215, it is usually not small enough for us to reject the null hypothesis. Thus, we should keep the null hypothesis and conclude that gender and county are two independent elements, which means the chance of a girl being born does not depend on the county she is at. 
+
+
+Problem 3
+```{r}
+chisq.perm.test = function(tb, B = 2000){
+  
+  #observed statistic
+  Dobserve <- chisq.test(tb)$stat
+  
+  #now calculate useful numbers from tab
+  numrow <- nrow(tb)
+  numcol <- ncol(tb)
+  totalcounts <- sum(tb[,])
+  
+  #idea: number each of the elements of the categories in the rows and columns 
+  #how many numbers are in each row, it is a vector
+  rows <- numeric(numrow)
+  vecrow <- numeric(0)
+  for (i in 1:numrow){
+    rows[i] <- sum(tb[i,])
+    vecrow <- c(vecrow, rep.int(i,times = rows[i]))
+  }
+  
+  #how many numbers are in each column, it is a vector
+  columns <- numeric(numcol)
+  veccol <- numeric(0)
+  for(j in 1:numcol){
+    columns[j] <- sum(tb[,j])
+    veccol <- c(veccol, rep.int(j, times = columns[j]))
+    }
+  #num is amount of times the statistcs is larger than Dobserved
+  num = 0
+  D <- numeric(B)
+  
+  for(b in 1:B){
+    xvalues <- vecrow
+    yvalues <- sample(veccol, totalcounts, replace = F) #permutation
+    matvalues <- cbind(xvalues, yvalues) #n*2 matrix
+    
+    #restore the generated vector into a bootstrap matrix
+    matnew <- matrix(0, nrow = numrow, ncol = numcol)
+    
+    #most complicated part
+    for(indx in 1:numrow){
+      for(indy in 1:numcol){
+        for(indm in 1:totalcounts){
+          if(all(matvalues[indm,] == c(indx, indy)) == T){
+            matnew[indx,indy] <- matnew[indx,indy]+1
+          }
+        }
+      }
+    }
+    D[b] <- chisq.test(matnew)$stat
+    if(D[b]>=Dobserve){num = num + 1}
+  }
+  return((num+1)/(B+1))
+}
+HairEyeColor
+temp <- apply(HairEyeColor,c(1,2),sum)
+colnames(temp) = NULL
+rownames(temp) = NULL
+chisq.perm.test(temp, B = 2000)
+chisq.test(temp, sim = T) #check by plug-in function
+```
+
+
+Problem 4A
+```{r}
+setwd("~/Desktop/math185_files")
+grants <- read.csv("grants.csv", header = T,sep = ",", fill = T)
+#only select third col(state) and sixth col(model)
+smtbl <- grants[,c(3,6)]
+#remove RI rows
+smtbl <- smtbl[-which(smtbl$State == "RI"), ]
+save(smtbl, file = "school-improvement-2010.rda")
+load(file = "school-improvement-2010.rda")
+#turn the table info into joint counts table
+jointcounts <- with(smtbl, table(State, Model.Selected))
+jointcounts <- jointcounts[-which(rownames(jointcounts) == "RI"),-c(1)]
+jointcounts
+barplot(t(jointcounts),legend = T, args.legend = list(x="topright"))
+chisq.test(jointcounts)
+```
+Given the p-value is very small, we reject the null hypothesis and conclude that there is an association between the model that each school selected and the state where each school was located.
+
+Problem 4B
+```{r warning = FALSE}
+options(warn = -1)
+chisq.perm.test(jointcounts, B = 2000)
+chisq.test(jointcounts,sim = T) #double check by using plug-in function
+```
+In this case, the function from problem 3 is applicable and the results are both approximately zeros.
