@@ -1,0 +1,378 @@
+---
+title: "Biostat 200C Homework 1"
+author: "Yuetong Lyu"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
+```
+
+## Q1. Concavity of logistic regression log-likelihood 
+
+### Q1.1
+
+Write down the log-likelihood function of logistic regresion for binomial responses.
+
+Given $n$ data points $(y_i, \mathbf{x}_i)$, $i=1,\ldots,n$, the **log-likelihood** is
+$$
+\ell(\boldsymbol{\beta}) = \sum_{i=1}^n \left[ y_i \log p_i + (m_i - y_i) \log (1 - p_i) + \log \binom{m_i}{y_i} \right] \\
+= \sum_{i=1}^n \left[ y_i \eta_i - m_i \log ( 1 + e^{\eta_i}) + \log \binom{m_i}{y_i} \right] \\
+= \sum_{i=1}^n \left[ y_i \cdot \mathbf{x}_i^T \boldsymbol{\beta} - m_i \log ( 1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}}) + \log \binom{m_i}{y_i} \right].
+$$
+
+### Q1.2
+
+Derive the gradient vector and Hessian matrix of the log-likelhood function with respect to the regression coefficients $\boldsymbol{\beta}$. 
+
+*Solution* 
+First, we take the first derivative with respect to $\boldsymbol{\beta}$ to derive the gradient vector.
+\begin{eqnarray*}
+\frac{\partial\ell(\boldsymbol{\beta})}{\partial\boldsymbol{\beta}} &=& \sum_i(y_i x_i - \frac{m_i x_i e^{\mathbf{x}_i^T \boldsymbol{\beta}}}{1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}}}) 
+\end{eqnarray*}
+Then, we take the second derivative with respect to $\boldsymbol{\beta}$ to derive the Hessian matrix.
+\begin{eqnarray*}
+\frac{\partial^2\ell(\boldsymbol{\beta})}{\partial^2\boldsymbol{\beta}} &=& \sum_i(-\frac{m_i x_i x_i^T e^{\mathbf{x}_i^T \boldsymbol{\beta}} (1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}}) - m_i x_i x_i^T e^{2\mathbf{x}_i^T \boldsymbol{\beta}}}{(1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}})^2})
+&=& \sum_i(\frac{-m_i x_i x_i^T e^{\mathbf{x}_i^T \boldsymbol{\beta}}}{(1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}})^2})
+\end{eqnarray*}
+$$
+H = \sum_i(-\frac{m_i x_i x_i^T e^{\mathbf{x}_i^T \boldsymbol{\beta}}}{(1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}})^2})
+$$
+
+### Q1.3
+
+Show that the log-likelihood function of logistic regression is a concave function in regression coefficients $\boldsymbol{\beta}$. (Hint: show that the negative Hessian is a positive semidefinite matrix.)
+
+*Solution* 
+For any none-zero column vector z, 
+$$
+z^T(-H)z=\sum_i(z_i^T \frac{m_i x_i x_i^T e^{\mathbf{x}_i^T \boldsymbol{\beta}}}{(1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}})^2} z_i) 
+= \sum_i(z_i^T x_i x_i^T z_i \frac{m_i e^{\mathbf{x}_i^T \boldsymbol{\beta}}}{(1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}})^2}) 
+=\sum_i((z_i^T x_i)^2 \frac{m_i e^{\mathbf{x}_i^T \boldsymbol{\beta}}}{(1 + e^{\mathbf{x}_i^T \boldsymbol{\beta}})^2}) 
+$$
+Thus, the negative Hessian matrix is a positive semidefinite matrix. The log-likelihood function of logistic regression is a concave function in regression coefficients $\boldsymbol{\beta}$.
+
+## Q2. CFR of COVID-19
+
+Of primary interest to public is the risk of dying from COVID-19. A commonly used measure is case fatality rate/ratio/risk (CFR), which is defined as
+$$
+\frac{\text{number of deaths from disease}}{\text{number of diagnosed cases of disease}}.
+$$
+Apparently CFR is not a fixed constant; it changes with time, location, and other factors. Also CFR is different from the infection fatality rate (IFR), the probability that someone infected with COVID-19 dies from it. 
+
+In this exercise, we use logistic regression to study how US county-level CFR changes according to demographic information and some health-, education-, and economy-indicators.
+
+### Data sources
+
+- `04-04-2020.csv.gz`: The data on COVID-19 confirmed cases and deaths on 2020-04-04 is retrieved from the [Johns Hopkins COVID-19 data repository](https://github.com/CSSEGISandData/COVID-19). It was downloaded from this [link](https://github.com/CSSEGISandData/COVID-19) (commit 0174f38).
+
+- `us-county-health-rankings-2020.csv.gz`: The 2020 County Health Ranking Data was released by [County Health Rankings](https://www.countyhealthrankings.org). The data was downloaded from the [Kaggle Uncover COVID-19 Challenge](https://www.kaggle.com/roche-data-science-coalition/uncover) (version 1).
+
+### Sample code for data preparation
+
+Load the `tidyverse` package for data manipulation and visualization.
+```{r}
+# tidyverse of data manipulation and visualization
+library(tidyverse)
+```
+Read in the data of COVID-19 cases reported on 2020-04-04.
+```{r}
+county_count <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/04-04-2020.csv") %>%
+  # cast fips into dbl for use as a key for joining tables
+  mutate(FIPS = as.numeric(FIPS)) %>%
+  filter(Country_Region == "US") %>%
+  print(width = Inf)
+```
+Standardize the variable names by changing them to lower case.
+```{r}
+names(county_count) <- str_to_lower(names(county_count))
+```
+Sanity check by displaying the unique US states and territories:
+```{r}
+county_count %>%
+  select(province_state) %>%
+  distinct() %>%
+  arrange(province_state) %>%
+  print(n = Inf)
+```
+We want to exclude entries from `Diamond Princess`, `Grand Princess`, `Guam`, `Northern Mariana Islands`, `Puerto Rico`, `Recovered`, and `Virgin Islands`, and only consider counties from 50 states and DC.
+```{r}
+county_count <- county_count %>%
+  filter(!(province_state %in% c("Diamond Princess", "Grand Princess", 
+                                 "Recovered", "Guam", "Northern Mariana Islands", 
+                                 "Puerto Rico", "Virgin Islands"))) %>%
+  print(width = Inf)
+```
+Graphical summarize the COVID-19 confirmed cases and deaths on 2020-04-04 by state.
+```{r}
+county_count %>%
+  # turn into long format for easy plotting
+  pivot_longer(confirmed:recovered, 
+               names_to = "case", 
+               values_to = "count") %>%
+  group_by(province_state) %>%
+  ggplot() + 
+  geom_col(mapping = aes(x = province_state, y = `count`, fill = `case`)) + 
+  # scale_y_log10() + 
+  labs(title = "US COVID-19 Situation on 2020-04-04", x = "State") + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+Read in the 2020 county-level health ranking data.
+```{r}
+county_info <- read_csv("./us-county-health-rankings-2020.csv") %>%
+  filter(!is.na(county)) %>%
+  # cast fips into dbl for use as a key for joining tables
+  mutate(fips = as.numeric(fips)) %>%
+  select(fips, 
+         state,
+         county,
+         percent_fair_or_poor_health, 
+         percent_smokers, 
+         percent_adults_with_obesity, 
+         # food_environment_index,
+         percent_with_access_to_exercise_opportunities, 
+         percent_excessive_drinking,
+         # teen_birth_rate, 
+         percent_uninsured,
+         # primary_care_physicians_rate,
+         # preventable_hospitalization_rate,
+         # high_school_graduation_rate,
+         percent_some_college,
+         percent_unemployed,
+         percent_children_in_poverty,
+         # `80th_percentile_income`,
+         # `20th_percentile_income`,
+         percent_single_parent_households,
+         # violent_crime_rate,
+         percent_severe_housing_problems,
+         overcrowding,
+         # life_expectancy,
+         # age_adjusted_death_rate,
+         percent_adults_with_diabetes,
+         # hiv_prevalence_rate,
+         percent_food_insecure,
+         # percent_limited_access_to_healthy_foods,
+         percent_insufficient_sleep,
+         percent_uninsured_2,
+         median_household_income,
+         average_traffic_volume_per_meter_of_major_roadways,
+         percent_homeowners,
+         # percent_severe_housing_cost_burden,
+         population_2,
+         percent_less_than_18_years_of_age,
+         percent_65_and_over,
+         percent_black,
+         percent_asian,
+         percent_hispanic,
+         percent_female,
+         percent_rural) %>%
+  print(width = Inf)
+```
+
+For stability in estimating CFR, we restrict to counties with $\ge 5$ confirmed cases.
+```{r}
+county_count <- county_count %>%
+  filter(confirmed >= 5)
+```
+We join the COVID-19 count data and county-level information using FIPS (Federal Information Processing System) as key. 
+```{r}
+county_data <- county_count %>%
+  left_join(county_info, by = "fips") %>%
+  print(width = Inf)
+```
+Numerical summaries of each variable:
+```{r}
+summary(county_data)
+```
+List rows in `county_data` that don't have a match in `county_count`:
+```{r}
+county_data %>%
+  filter(is.na(state) & is.na(county)) %>%
+  print(n = Inf)
+```
+We found there are some rows that miss `fips`. 
+```{r}
+county_count %>%
+  filter(is.na(fips)) %>%
+  select(fips, admin2, province_state) %>%
+  print(n = Inf)
+```
+We need to (1) manually set the `fips` for some counties, (2) discard those `Unassigned`, `unassigned` or `Out of`, and (3) try to join with `county_info` again.
+```{r}
+county_data <- county_count %>%
+  # manually set FIPS for some counties
+  mutate(fips = ifelse(admin2 == "DeKalb" & province_state == "Tennessee", 47041, fips)) %>%
+  mutate(fips = ifelse(admin2 == "DeSoto" & province_state == "Florida", 12027, fips)) %>%
+  #mutate(fips = ifelse(admin2 == "Dona Ana" & province_state == "New Mexico", 35013, fips)) %>% 
+  mutate(fips = ifelse(admin2 == "Dukes and Nantucket" & province_state == "Massachusetts", 25019, fips)) %>% 
+  mutate(fips = ifelse(admin2 == "Fillmore" & province_state == "Minnesota", 27045, fips)) %>%  
+  #mutate(fips = ifelse(admin2 == "Harris" & province_state == "Texas", 48201, fips)) %>%  
+  #mutate(fips = ifelse(admin2 == "Kenai Peninsula" & province_state == "Alaska", 2122, fips)) %>%  
+  mutate(fips = ifelse(admin2 == "LaSalle" & province_state == "Illinois", 17099, fips)) %>%
+  #mutate(fips = ifelse(admin2 == "LaSalle" & province_state == "Louisiana", 22059, fips)) %>%
+  #mutate(fips = ifelse(admin2 == "Lac qui Parle" & province_state == "Minnesota", 27073, fips)) %>%  
+  mutate(fips = ifelse(admin2 == "Manassas" & province_state == "Virginia", 51683, fips)) %>%
+  #mutate(fips = ifelse(admin2 == "Matanuska-Susitna" & province_state == "Alaska", 2170, fips)) %>%
+  mutate(fips = ifelse(admin2 == "McDuffie" & province_state == "Georgia", 13189, fips)) %>%
+  #mutate(fips = ifelse(admin2 == "McIntosh" & province_state == "Georgia", 13191, fips)) %>%
+  #mutate(fips = ifelse(admin2 == "McKean" & province_state == "Pennsylvania", 42083, fips)) %>%
+  mutate(fips = ifelse(admin2 == "Weber" & province_state == "Utah", 49057, fips)) %>%
+  filter(!(is.na(fips) | str_detect(admin2, "Out of") | str_detect(admin2, "Unassigned"))) %>%
+  left_join(county_info, by = "fips") %>%
+  print(width = Inf)
+```
+Summarize again
+```{r}
+summary(county_data)
+```
+If there are variables with missing value for many counties, we go back and remove those variables from consideration.
+
+Let's create a final data frame for analysis.
+```{r}
+county_data <- county_data %>%
+  mutate(state = as.factor(state)) %>%
+  select(county, confirmed, deaths, state, percent_fair_or_poor_health:percent_rural)
+summary(county_data)
+```
+Display the 10 counties with highest CFR.
+```{r}
+county_data %>%
+  mutate(cfr = deaths / confirmed) %>%
+  select(county, state, confirmed, deaths, cfr) %>%
+  arrange(desc(cfr)) %>%
+  top_n(10)
+```
+Write final data into a csv file for future use.
+```{r}
+write_csv(county_data, "covid19-county-data-20200404.csv.gz")
+```
+
+### Q2.1 
+
+Read and run above code to generate a data frame `county_data` that includes county-level COVID-19 confirmed cases and deaths, demographic, and health related information. 
+
+### Q2.2
+
+What assumptions of CFR might be violated by defining CFR as `deaths/confirmed` from this data set? With acknowledgement of these severe limitations, we continue to use `deaths/confirmed` as a very rough proxy of CFR.
+
+*Solution*
+A CFR can be considered as final if all the cases are either died or recovered. There are still active cases who have not recovered from COVID-19 and are undergoing treatment.
+
+### Q2.3 
+
+What assumptions of logistic regression may be violated by this data set?
+
+*Solution*
+(1) The probability of death of different individuals may not be the same. 
+(2) The assumption of linearity of independent variables and log-odds may be violated.
+
+### Q2.4 
+
+Run a logistic regression, using variables `state`, ..., `percent_rural` as predictors. 
+```{r}
+logistic_mod <- glm(cbind(deaths, confirmed - deaths) ~ . -county - confirmed
+                    - deaths, family = binomial, data = county_data)
+summary(logistic_mod) 
+```
+
+### Q2.5 
+
+Interpret the regression coefficients of 3 significant predictors with p-value <0.01.
+
+*Solution*
+Every one percent increases in people with fair or poor health will decrease the log-odds of death by approximately 0.054 on average, controlling for all other variables.
+
+Every one percent increases in the population less than 18 years of age will decrease the log-odds of death by approximately 0.048 on average, controlling for all other variables.
+
+Every one more person in New York will decrease the log-odds of death by approximately 0.93 on average, controlling for all other variables.
+
+### Q2.6 
+
+Apply analysis of deviance to (1) evaluate the goodness of fit of the model and (2) compare the model to the intercept-only model. 
+
+(1)Goodness of fit of the model:
+```{r}
+pchisq(logistic_mod$deviance, logistic_mod$df.residual, lower.tail = FALSE)
+```
+Given such a small p-value, it shows that the model is not a good fit to the data.
+
+(2)Compare the model to the intercept-only model:
+```{r}
+pchisq(logistic_mod$null.deviance - logistic_mod$deviance, 2, lower.tail = FALSE)
+```
+Given the p-value is small, our model gives a significantly better fit than the null (intercept-only) model.
+
+### Q2.7
+
+Perform analysis of deviance to evaluate the significance of each predictor. Display the 10 most significant predictors.
+```{r}
+drop1(logistic_mod, test = "Chi")
+```
+The 10 most significant predictors: state, percent_fair_or_poor_health, percent_smokers,
+percent_some_college, percent_children_in_poverty, percent_severe_housing_problems, 
+median_household_income, percent_insufficient_sleep, percent_homeowners, 
+percent_less_than_18_years_of_age
+
+### Q2.8
+
+Construct confidence intervals of regression coefficients.
+```{r, warning = F}
+confint(logistic_mod)
+```
+
+### Q2.9 
+
+Plot the deviance residuals against the fitted values. Are there potential outliers?
+```{r}
+linpred  <- predict(logistic_mod)
+devres <- residuals(logistic_mod)
+county_data %>%
+  mutate(devres = devres, linpred = linpred) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = linpred, y = devres)) +
+  labs(x = "Linear predictor", y = "Deviance residuals")
+```
+Based on the plot, there are potential outliers which give high deviance residuals.
+
+### Q2.10
+
+Plot the half-normal plot. Are there potential outliers in predictor space?
+```{r}
+library(faraway)
+halfnorm(hatvalues(logistic_mod))
+```
+Yes, observation 931 and 367 are two potential outliers in predictor space.
+
+### Q2.11
+
+Find the best sub-model using the AIC criterion.
+```{r}
+step(logistic_mod, trace = TRUE, direction = "both")
+best_AIC <- glm(formula = cbind(deaths, confirmed - deaths) ~ state + percent_fair_or_poor_health + 
+    percent_smokers + percent_excessive_drinking + percent_uninsured + 
+    percent_some_college + percent_unemployed + percent_children_in_poverty + 
+    percent_single_parent_households + percent_severe_housing_problems + 
+    percent_adults_with_diabetes + percent_food_insecure + percent_insufficient_sleep + 
+    percent_uninsured_2 + median_household_income + percent_homeowners + 
+    population_2 + percent_less_than_18_years_of_age + percent_black + 
+    percent_hispanic + percent_female, family = binomial, data = county_data)
+```
+
+### Q2.12
+
+Find the best sub-model using the lasso with cross validation.
+```{r}
+library(glmnet)
+set.seed(200)
+x <- model.matrix(
+  cbind(deaths, confirmed - deaths) ~ . - 1 - county - confirmed - deaths, 
+  data = county_data)
+y <- cbind(county_data$deaths, county_data$confirmed - county_data$deaths)
+cv_lasso <- cv.glmnet(x, y, alpha = 1, family = "binomial", 
+                      type.measure = "auc")
+coef(cv_lasso, cv_lasso$lambda.min)
+```
