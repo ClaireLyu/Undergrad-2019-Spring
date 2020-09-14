@@ -1,5 +1,5 @@
 ---
-title: "185 HW2"
+title: "Math 185 HW2"
 author: "Yuetong Lyu"
 date: "4/20/2019"
 output: pdf_document
