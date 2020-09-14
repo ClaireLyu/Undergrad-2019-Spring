@@ -1,0 +1,74 @@
+---
+title: "Math185 HW6"
+author: "Yuetong Lyu"
+date: "5/28/2019"
+output: pdf_document
+---
+
+Problem 1
+The data set I chose has 25 people and each person has m gene expressions. I will divide them into two groups. The first 9 will be one group and the rest of them will be another. There are multiple genes in the data set also. Each gene is shared around these 2 groups.
+```{r}
+dat = read.table("GSE7621.csv", header = TRUE)
+dat = dat[,-1]
+m = nrow(dat)
+pval = numeric(m)
+for(i in 1:m){pval[i] = t.test(dat[i,1:9],dat[i,-(1:9)])$p.value}
+
+reject = (pval <= 0.2)
+R = sum(reject)
+pval.bh = p.adjust(pval,"BH") #Assume data within samples are independent
+pval.by = p.adjust(pval,"BY")
+
+reject.bh = (pval.bh <= 0.2)
+R.bh = sum(reject.bh)
+reject.by = (pval.by <= 0.2)
+R.by = sum(reject.by)
+
+R
+R.bh
+R.by
+```
+After applying the FDR control at the level of 20%, we reduced the risk of having too many type 1 errors. By observing the result, there is a significant decrease in the rejections after we applied the FDR control. Since the "BH" method required data to be independent, we conclude that there are 3 genes that are differentially expressed.
+
+Problem 2A
+```{r}
+load("dataset-chns-2006-subset3.Rdata")
+diastolic = data$diastolic
+systolic = data$systolic
+plot(data$diastolic, data$systolic, pch = 16, , cex = 1, main = "Systolic vs Diastolic Values", xlab = "Diastolic Value", ylab = "Systolic Value")
+```
+
+Problem 2B
+Linear regression 
+H0: Beta1 = 0 H1: Beta1 != 0
+```{r}
+summary(lm(systolic ~ diastolic))
+cor.test(diastolic, systolic) #Assume the data are normal
+```
+After observing the scatter plot, I decided to use the linear regression model to conduct a test. Given the p value is extremely small, we reject our null hypothesis and conclude that there is an association between Diastolic and Systolic. In addition, I checked by using correlation two sample test and also reached the same conclusion.
+
+Problem 2C
+```{r}
+fit = summary(lm(systolic ~ diastolic))
+fit$adj.r.squared
+plot(data$diastolic, data$systolic, pch = 16, , cex = 1, main = "Systolic vs Diastolic Values", xlab = "Diastolic Value", ylab = "Systolic Value")
+abline(lm(systolic ~ diastolic), col = "red", lwd = 2)
+confint(lm(systolic ~ diastolic))
+```
+Assumption is error terms are iid N(0,sigma^2)
+
+Problem 2D
+```{r}
+#fitting polynomial of degree 2
+fit2 = lm(systolic ~ poly(diastolic, 2, raw = TRUE))
+fit2R = summary(lm(systolic ~ poly(diastolic, 2, raw = TRUE)))$adj.r.squared
+
+#40 and 180 comes from summary of diastolic 
+pts = seq(40,180,len=1000)
+val = predict(fit2, data.frame(diastolic = pts))
+plot(data$diastolic, data$systolic, pch = 16, , cex = 1, main = "Systolic vs Diastolic Values", xlab = "Diastolic Value", ylab = "Systolic Value")
+abline(lm(systolic ~ diastolic), col = "red", lwd = 2)
+lines(pts, val, col = "blue", lwd = 2)
+legend(130, 110, c("Degree 1", "Degree 2"), fill = c("red", "blue"))
+```
+Since there is no significant change in adjusted R squared, we choose to use linear model which is simpler than polynomial of degree 2.
