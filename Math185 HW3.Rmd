@@ -1,0 +1,160 @@
+---
+title: "Math185 HW3"
+author: "Yuetong Lyu"
+date: "4/28/2019"
+output: pdf_document
+---
+
+Problem 1
+```{r}
+require(MASS)
+options(warn=-1)
+# to run back warning use: options(warn=0)
+
+chisq.normal.test = function(x, B = 2000){
+  n=length(x)
+  #calculating MLE
+  mle = fitdistr(x, "normal")
+  mu = mle$est[1]
+  sigma = mle$est[2]
+  
+  #histogram for outomatically selecting the bins
+  H = hist(x, 30, col="grey", freq = FALSE)
+  
+  #expected counts for these particular bins, and original statistics
+  prob = pnorm(H$breaks, mean=mu, sd=sigma)
+  exp.counts = n*diff(prob)
+  obs.counts = table(cut(x, H$breaks))
+  test = chisq.test(obs.counts, p=exp.counts, rescale.p=TRUE) 
+  D = as.numeric(test$stat) #observed value of the statistics
+  
+  D.boot = numeric(B)
+  count = 0
+  for (b in 1:B) {
+    dat.boot = rnorm(n, mean = mu, sd = sigma) 
+    H = hist(dat.boot, 30, plot = FALSE) 
+    mu.boot = mean(dat.boot)
+    sigma.boot = sd(dat.boot)
+    prob = pnorm(H$breaks, mean = mu.boot, sd = sigma.boot) 
+    exp.counts = n*diff(prob)
+    obs.counts = table(cut(dat.boot, H$breaks))
+    result = chisq.test(obs.counts, p=exp.counts, rescale.p = TRUE)
+    D.boot[b] = as.numeric(result$stat) #observed value of the statistics
+    if(D.boot[b]>=D) {count=count+1}
+  }
+  return ((count + 1)/(B+1))
+}
+```
+
+Problem 2A
+```{r}
+setwd("~/Desktop/math185_files")
+library(readxl)
+S1data = read_excel("S1Dataset.xlsx", sheet=2) 
+brazil = S1data[which(S1data$Country==1),] 
+portugal = S1data[which(S1data$Country==2),] 
+mozambique = S1data[which(S1data$Country==3),] 
+
+brazilweight = brazil$Weight
+portugalweight=portugal$Weight 
+mozambiqueweight=mozambique$Weight
+
+brazilweight = as.numeric(na.omit(brazilweight))
+portugalweight= as.numeric(na.omit(portugalweight)) 
+mozambiqueweight= as.numeric(na.omit(mozambiqueweight))
+```
+
+Histogram and overlay the normal distribution
+```{r}
+require("MASS")
+
+#comparing histogram with fitted density
+#brazilweight
+fit = fitdistr(brazilweight, "normal")
+mu = fit$est[1] 
+sigma = fit$est[2]
+H = hist(brazilweight, 30, col="grey", freq=FALSE, main="Histogram of Brazil Weight Overlayed by Normal Density", xlab = "weight") 
+t = seq(33, 135, len = 1000)
+lines(t, dnorm(t, mean = mu, sd = sigma), col=2, lwd = 6)
+
+#portugalweight
+fit = fitdistr(portugalweight, "normal")
+mu = fit$est[1]
+sigma = fit$est[2]
+H = hist(portugalweight, 30, col="grey", freq=FALSE, main="Histogram of Portugal Weight Overlayed by Normal Density")
+t = seq(33, 135, len = 1000)
+lines(t, dnorm(t, mean=mu, sd=sigma), col=2, lwd = 6)
+
+#mozambiqueweight
+fit = fitdistr(mozambiqueweight, "normal")
+mu = fit$est[1]
+sigma = fit$est[2]
+H = hist(mozambiqueweight, 30, col="grey", freq=FALSE, main="Histogram of Mozambique Weight Overlayed by Normal Density")
+t = seq(33, 135, len = 1000)
+lines(t, dnorm(t, mean=mu, sd=sigma), col=2, lwd = 6)
+```
+
+Problem 2B
+```{r}
+#test for normality using function in problem 1
+chisq.normal.test(brazilweight,B = 2000)
+chisq.normal.test(portugalweight, B = 2000)
+chisq.normal.test(mozambiqueweight, B = 2000)
+```
+
+Problem 3
+```{r}
+brazil = S1data[which(S1data$Country==1),] 
+portugal = S1data[which(S1data$Country==2),] 
+mozambique = S1data[which(S1data$Country==3),] 
+
+brazilweight = brazil$Weight
+portugalweight=portugal$Weight 
+mozambiqueweight=mozambique$Weight
+
+brazilweight = as.numeric(na.omit(brazilweight))
+portugalweight= as.numeric(na.omit(portugalweight)) 
+mozambiqueweight= as.numeric(na.omit(mozambiqueweight))
+```
+
+Permutation Test Function of H0:X~Y  H1:X stochastically dominates Y
+```{r}
+pertest = function(x,y,B){
+  nx = length(x)
+  ny = length(y)
+  testorig = mean(x) - mean(y)
+  z = c(x, y)
+  n = length(z)
+  
+  count = 0
+  for(b in 1:B){
+    temp = sample(z, n ,replace = FALSE)
+    xtemp = temp[1:nx]
+    ytemp = temp[(nx+1):n]
+    meantemp = mean(xtemp) - mean(ytemp)
+    if(meantemp >= testorig){count = count +1}
+  }
+  return((count + 1)/ (B + 1))
+}
+
+pertest(brazilweight, portugalweight, 10000)
+pertest(brazilweight, mozambiqueweight, 10000)
+pertest(portugalweight,mozambiqueweight, 10000)
+```
+Kolmogorov-Smimov Two-Sample Test HO: F(x)=F(y)  H1:the cdf of x lies above that of y
+Since the test statistics follows Kolmogorov-Smimov distribution, p-value is the probability that the sample test statistic is larger than the test statistics under the Kolmogorov-Sirov distribution.
+```{r}
+ks.test(brazilweight, portugalweight, alternative = "greater")
+ks.test(brazilweight, mozambiqueweight, alternative = "greater")
+ks.test(portugalweight, mozambiqueweight, alternative = "greater")
+```
+
+Wilcoxen Rank Sum Test/Mann Whitney U Test HO:mu(x)=mu(y)  H1:mu(x) > mu(y) 
+Since the test statistics approximately follows the normal distribution, p-value is the probability that the sample test statistics is larger than that under the normal distribution.
+```{r}
+wilcox.test(brazilweight, portugalweight, alternative = "greater")
+wilcox.test(brazilweight, mozambiqueweight, alternative = "greater")
+wilcox.test(mozambiqueweight, portugalweight, alternative = "greater")
+```
+
+
