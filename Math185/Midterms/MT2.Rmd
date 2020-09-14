@@ -1,0 +1,99 @@
+---
+title: "Take-home 2"
+author: "Yuetong Lyu"
+date: "6/6/2019"
+output: pdf_document
+---
+
+Problem 1A
+```{r}
+bootGOFdiff <- function(x, y, B=2000){
+  x_len = length(x)
+  y_len = length(y)
+  t = c(x,y)
+  T_id = abs(mean(x)-mean(y))
+  count = 0
+  for(b in 1:B){
+    x_new = sample(t, x_len, replace = T)
+    y_new = sample(t, y_len, replace = T)
+    T_boot = abs(mean(x_new)-mean(y_new))
+    if(T_boot >= T_id){
+      count = count + 1
+    }
+  }
+  p_val = (count+1)/(B+1)
+  print(p_val)
+}
+```
+
+Problem 1B
+```{r}
+library(stringr)
+fifa <- read.csv("~/Desktop/Math185/data.csv")
+fifa <- fifa[complete.cases(fifa),]
+fifa <- fifa[,c(4,13)]
+fifa$Wage <- as.numeric(str_extract(fifa$Wage, "[[:digit:]]+"))
+x_ind <- fifa$Wage[fifa$Age <= 29]
+y_ind <- fifa$Wage[fifa$Age >= 30]
+x <- fifa[x_ind,]$Wage
+y <- fifa[y_ind,]$Wage
+bootGOFdiff(x, y, B=2000)
+```
+
+Problem 2A
+```{r}
+library(quantreg)
+localAbsLinearRegression = function(x, y, h, xnew = x){
+  #choose uniform to fit kernel function
+  fit <- loess(y ~ x, span = h)
+  ynew <- predict(fit, data.frame(x = xnew))
+  return(rq(ynew ~ x))
+}
+```
+
+Problem 2B
+```{r}
+BA <- read.csv("~/Desktop/Math185/BA.csv")
+BA$Date <- as.numeric(BA$Date)
+res1 <- localAbsLinearRegression(BA$Date,BA$Close,0.2,xnew = BA$Date)
+res2 <- localAbsLinearRegression(BA$Date,BA$Close,0.3,xnew = BA$Date)
+res3 <- localAbsLinearRegression(BA$Date,BA$Close,0.5,xnew = BA$Date)
+res4 <- localAbsLinearRegression(BA$Date,BA$Close,0.6,xnew = BA$Date)
+res1
+plot(BA$Date, BA$Close)
+lines(BA$Date, res1$y, col = "red")
+lines(BA$Date, res2$y, col = "blue")
+lines(BA$Date, res3$y, col = "green")
+lines(BA$Date, res4$y, col = "yellow")
+legend(0,450,c("h = 0.2","h = 0.3","h = 0.5","h = 0.6"),fill = c("red","blue","green","yellow"))
+```
+
+Problem 2C
+```{r}
+BA <- read.csv("~/Desktop/Math185/BA.csv")
+BA$Date <- as.numeric(BA$Date)
+BA <- BA[,c(1,5)]
+h <- c(0.2,0.3,0.5,0.6)
+for(j in 1:4){
+  err <- c()
+  for(i in 1:10){
+  validation <- BA[(1+35*(i-1)):(35+35*(i-1)),]
+  training <- rbind(BA[1:(35*(i-1)),], BA[((35+35*(i-1))+1):355,])
+  res <- localAbsLinearRegression(training$Date,training$Close, h[j], xnew = training$Date)
+  err <- c(err, sum((validation$Close - (res$coef[1]+res$coef[2]*validation$Date))^2)/35)
+  }
+  epe <- sum(err)/10
+  print(epe)
+}
+```
+When h = 0.5, it gives the smallest expected prediction error by 10-fold cross-validation. Thus, we choose h = 0.5
+
+
+
+
+
+
+
+
+
+
