@@ -1,0 +1,105 @@
+---
+title: "Math185 HW5"
+author: "Yuetong Lyu"
+date: "5/13/2019"
+output: pdf_document
+---
+
+Problem 1A
+
+Question: Is smoking associated with a decrease in fitness level?
+Null hypothesis: distribution of heart rates for non/light/moderate/heavy smokers is the same.
+```{r}
+permF.test <- function(y, g, B=2000) {
+  # Return the p-value for the F-test calibrated based on B random permutations
+  # Should work for arbitrary number of groups.
+  
+  # Args:
+  #   y: vector of numerical values
+  #   g: vecor of group memberships
+  #   B: number of permutations
+  n = length(y)
+  F_obs <- oneway.test(y ~ g)$stat
+  # Compute F_obs (F statistic for unpermuted data)  
+  # for each b in B
+  #   shuffle labels
+  #   compute statistic F_pi
+  # return ratio of number of times F_pi is larger than F_obs
+  counts = 0
+  for(b in 1:B){
+    y_permut <- sample(y,n,replace = FALSE)
+    F_permut <- oneway.test(y_permut ~ g)$stat
+    if(F_permut >= F_obs){counts = counts + 1}
+  }
+  pval <- (counts + 1)/(B+1)
+  pval
+}
+```
+The p-value calculated above relies on the assumption that the observations are
+* iid
+* normal
+* homoscedastic (groups have equal variance)
+
+Problem 1B
+```{r}
+load("smokers.rda")
+g = numeric(0)
+g = c(g, rep("non", 6))
+g = c(g, rep("light", 6))
+g = c(g, rep("moderate", 6))
+g = c(g, rep("heavy", 6))
+y = unlist(smokers, use.names=FALSE)
+smokers = data.frame(smoke = g, hr = y)
+permF.test(smokers$hr,smokers$smoke)
+```
+
+Problem 1C
+```{r}
+cars <- read.csv("cars.csv")
+permF.test(cars$City.mpg, cars$Transmission)
+```
+
+Problem 2
+```{r}
+library(stringr)
+fifa <- read.csv("data.csv")
+fifa <- fifa[complete.cases(fifa),]
+Wage <- as.numeric(str_extract(fifa$Wage, "[[:digit:]]+"))
+features <- setdiff(names(fifa),c("X", "ID", "Name", "Photo", "Flag", "Wage", "Club.Logo", "Loaned.Form","Joined"))
+fifa <- fifa[,features]
+
+for(i in 21:46){
+  fifa[,i]<-as.character(fifa[,i])
+  fifa[,i]<-substr(fifa[,i],1,nchar(fifa[,i])-2)
+  fifa[,i]<-as.numeric(fifa[,i])
+}
+
+digit<-strsplit(as.character(fifa$Height),split = "'")
+A <- t(matrix(unlist(digit), nrow=2))
+fifa$Height<-as.numeric(A[,1])*12+as.numeric(A[,2])
+fifa$Weight<-as.numeric(str_extract(fifa$Weight, "[[:digit:]]+"))
+fifa$Value <- as.numeric(str_extract(fifa$Value, "[[:digit:]]+"))
+fifa$Release.Clause <- as.numeric(str_extract(fifa$Release.Clause, "[[:digit:]]+"))
+
+pval = numeric(ncol(fifa))
+for(i in 1:ncol(fifa)){
+  temp = fifa[,i]
+  pval[i] <- anova(lm(Wage ~ temp))$'Pr(>F)'[1]
+}
+
+# corrected p-values
+# Theorem: The Bonferroni procedure controls the FWER at α.
+pval.bon = p.adjust(pval, "bon") 
+# Assume to be independent
+pval.holm = p.adjust(pval, "holm")
+pval.hoch = p.adjust(pval, "hoch") 
+pval.bh = p.adjust(pval, "BH")
+pval.by = p.adjust(pval, "BY")
+
+# Check output
+pval
+print(pval.bon)
+print(pval.holm)
+print(pval.bh)
+print(pval.by)
+```
